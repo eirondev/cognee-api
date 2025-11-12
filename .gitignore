@@ -94,3 +94,6 @@ cython_debug/
 # Cognee specific
 .cognee/
 cognee_data/
+
+# Claude Code
+CLAUDE.md
