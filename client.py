@@ -4,20 +4,42 @@ from enum import Enum
 from pydantic import BaseModel
 import asyncio
 
-class SearchType(Enum):  # Mirror Cognee's
+class SearchType(Enum):  # Mirror Cognee's SearchType enum
+    SUMMARIES = "SUMMARIES"
+    CHUNKS = "CHUNKS"
+    RAG_COMPLETION = "RAG_COMPLETION"
     GRAPH_COMPLETION = "GRAPH_COMPLETION"
-    INSIGHTS = "INSIGHTS"
+    GRAPH_SUMMARY_COMPLETION = "GRAPH_SUMMARY_COMPLETION"
+    CODE = "CODE"
+    CYPHER = "CYPHER"
+    NATURAL_LANGUAGE = "NATURAL_LANGUAGE"
+    GRAPH_COMPLETION_COT = "GRAPH_COMPLETION_COT"
+    GRAPH_COMPLETION_CONTEXT_EXTENSION = "GRAPH_COMPLETION_CONTEXT_EXTENSION"
+    FEELING_LUCKY = "FEELING_LUCKY"
+    FEEDBACK = "FEEDBACK"
+    TEMPORAL = "TEMPORAL"
     CODING_RULES = "CODING_RULES"
+    CHUNKS_LEXICAL = "CHUNKS_LEXICAL"
 
 class CogneeClient:
-    def __init__(self, base_url: str = "http://localhost:8000"):
+    def __init__(self, base_url: str = "http://localhost:8000", timeout: float = 300.0):
         self.base_url = base_url
-        self.client = httpx.AsyncClient(base_url=base_url)
+        # Set a longer timeout for operations that may take time (downloading models, processing)
+        self.client = httpx.AsyncClient(base_url=base_url, timeout=timeout)
 
     async def add(self, text: str, user_id: Optional[str] = None, node_set: Optional[str] = None, dataset_name: Optional[str] = None) -> dict:
         data = {"text": text, "user_id": user_id, "node_set": node_set, "dataset_name": dataset_name}
         resp = await self.client.post("/add", json=data)
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            # Try to get more details from the error response
+            try:
+                error_detail = resp.json()
+                print(f"Server error details: {error_detail}")
+            except:
+                print(f"Server response: {resp.text}")
+            raise
         return resp.json()
 
     async def cognify(self, datasets: Optional[List[str]] = None) -> dict:
@@ -35,7 +57,16 @@ class CogneeClient:
     async def search(self, query_text: str, query_type: SearchType = SearchType.GRAPH_COMPLETION, user_id: Optional[str] = None, node_set: Optional[str] = None, node_name: Optional[List[str]] = None) -> dict:
         data = {"query_text": query_text, "query_type": query_type.value, "user_id": user_id, "node_set": node_set, "node_name": node_name}
         resp = await self.client.post("/search", json=data)
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            # Try to get more details from the error response
+            try:
+                error_detail = resp.json()
+                print(f"Server error details: {error_detail}")
+            except:
+                print(f"Server response: {resp.text}")
+            raise
         return resp.json()
 
     async def delete(self, data_id: str) -> dict:
@@ -45,7 +76,19 @@ class CogneeClient:
         return resp.json()
 
     async def prune(self) -> dict:
+        """Clear all data (documents, knowledge graphs, etc.)"""
         resp = await self.client.post("/prune")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def prune_system(self) -> dict:
+        """Clear system data (graph, vector, metadata, cache)"""
+        resp = await self.client.post("/prune_system")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def health(self) -> dict:
+        resp = await self.client.get("/health")
         resp.raise_for_status()
         return resp.json()
 

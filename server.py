@@ -6,10 +6,10 @@ from pydantic import BaseModel
 import asyncio
 import cognee
 from cognee import SearchType  # Import for query_type validation
+from dotenv import load_dotenv
 
-# Set Cognee config (e.g., via env; adjust as needed)
-os.environ["LLM_API_KEY"] = os.getenv("LLM_API_KEY", "your-openai-key")  # Or use .env
-# os.environ["LLM_PROVIDER"] = "ollama"  # For local, etc.
+# Load environment variables from .env file
+load_dotenv()
 
 app = FastAPI(title="Cognee API Wrapper", version="1.0")
 
@@ -40,14 +40,29 @@ class DeleteRequest(BaseModel):
 @app.post("/add", response_model=dict)
 async def api_add(req: AddRequest):
     try:
-        # Map to cognee.add (handles list of texts too; extend if needed)
-        result = await cognee.add(
-            req.text,
-            user_id=req.user_id,
-            node_set=req.node_set,
-            dataset_name=req.dataset_name
-        )
+        # Build kwargs dict with only non-None values to handle different cognee versions
+        kwargs = {}
+        if req.dataset_name is not None:
+            kwargs['dataset_name'] = req.dataset_name
+        if req.user_id is not None:
+            kwargs['user_id'] = req.user_id
+        if req.node_set is not None:
+            kwargs['node_set'] = req.node_set
+
+        # Call cognee.add with only supported parameters
+        result = await cognee.add(req.text, **kwargs)
         return {"success": True, "data": {"data_id": result}, "message": "Data added"}
+    except TypeError as e:
+        # If we get a TypeError about unexpected arguments, try with just the text and dataset_name
+        if "unexpected keyword argument" in str(e):
+            try:
+                result = await cognee.add(req.text, dataset_name=req.dataset_name)
+                return {"success": True, "data": {"data_id": result}, "message": "Data added"}
+            except:
+                # If that fails too, try with just the text
+                result = await cognee.add(req.text)
+                return {"success": True, "data": {"data_id": result}, "message": "Data added"}
+        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -75,14 +90,34 @@ async def api_memify(req: MemifyRequest):
 @app.post("/search", response_model=dict)
 async def api_search(req: SearchRequest = Body(...)):
     try:
-        results = await cognee.search(
-            query_text=req.query_text,
-            query_type=req.query_type,
-            user_id=req.user_id,
-            node_set=req.node_set,
-            node_name=req.node_name  # If supported in search
-        )
+        # Build kwargs dict with only non-None values
+        kwargs = {"query_text": req.query_text}
+
+        if req.query_type is not None:
+            kwargs['query_type'] = req.query_type
+        if req.user_id is not None:
+            kwargs['user_id'] = req.user_id
+        if req.node_set is not None:
+            kwargs['node_set'] = req.node_set
+        if req.node_name is not None:
+            kwargs['node_name'] = req.node_name
+
+        results = await cognee.search(**kwargs)
         return {"success": True, "data": results, "message": "Search complete"}
+    except TypeError as e:
+        # If we get a TypeError about unexpected arguments, try with minimal params
+        if "unexpected keyword argument" in str(e):
+            try:
+                results = await cognee.search(
+                    query_text=req.query_text,
+                    query_type=req.query_type
+                )
+                return {"success": True, "data": results, "message": "Search complete"}
+            except:
+                # If that fails, try with just query_text
+                results = await cognee.search(req.query_text)
+                return {"success": True, "data": results, "message": "Search complete"}
+        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -96,9 +131,19 @@ async def api_delete(req: DeleteRequest):
 
 @app.post("/prune", response_model=dict)
 async def api_prune():
+    """Clear all data (documents, knowledge graphs, etc.)"""
     try:
-        result = await cognee.prune()
-        return {"success": True, "data": result, "message": "All memory cleared"}
+        result = await cognee.prune.prune_data()
+        return {"success": True, "data": result, "message": "All data cleared"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/prune_system", response_model=dict)
+async def api_prune_system():
+    """Clear system data (graph, vector, metadata, cache)"""
+    try:
+        result = await cognee.prune.prune_system(graph=True, vector=True, metadata=True, cache=True)
+        return {"success": True, "data": result, "message": "System data cleared"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -108,4 +153,4 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8181)

@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+pydantic
+python-dotenv
+cognee
+transformers
+torch
+sentence-transformers
+numpy
+aiofiles

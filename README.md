@@ -49,6 +49,56 @@ uvicorn server:app --host 0.0.0.0 --port 8000
 
 The server will start at `http://localhost:8000`. Visit `http://localhost:8000/docs` for interactive API documentation.
 
+## Deployment to eva_cognee Server
+
+### From Development Machine
+
+1. Create your `.env` file in the project directory with your environment variables:
+   ```bash
+   LLM_API_KEY=your-api-key-here
+   ```
+
+2. Run the deployment script:
+   ```bash
+   ./deploy.sh
+   ```
+
+### Setup on eva_cognee Server
+
+After deploying files to the server, SSH into eva_cognee and set up the environment:
+
+```bash
+# SSH into the server
+ssh root@eva_cognee
+
+# Navigate to the project directory
+cd /root/cognee-api
+
+# Create a virtual environment
+python3 -m venv venv
+
+# Activate the virtual environment
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the server
+python server.py
+```
+
+The server will start on `http://0.0.0.0:8000` (accessible at `http://eva_cognee:8000` or `http://192.168.30.33:8000`)
+
+### Running the Server on eva_cognee
+
+To run the server after initial setup:
+
+```bash
+cd /root/cognee-api
+source venv/bin/activate
+python server.py
+```
+
 ## API Endpoints
 
 ### Health Check
